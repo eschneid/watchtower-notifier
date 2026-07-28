@@ -1,12 +1,11 @@
 name: Notify Social Interactions
 
+# Triggered every ~5 min by an external cron (cron-job.org) hitting the
+# workflow_dispatch API — GitHub's built-in `schedule` was unreliable (dropped
+# most ticks), and running both risked double-sending (overlapping drains before
+# queue items are deleted). cron-job.org is now the single, reliable trigger.
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # Every 5 minutes (public repo — Actions minutes are unlimited).
-                            # NOTE: GitHub's scheduler is best-effort and drops ticks under
-                            # load; frequent runs give more catch-up chances. For guaranteed
-                            # timing, drive workflow_dispatch from an external cron instead.
-  workflow_dispatch:           # Allow manual trigger from GitHub UI
+  workflow_dispatch:           # Fired by cron-job.org (and manual runs from the UI)
 
 jobs:
   notify:
@@ -28,5 +27,3 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node notify-social.js
-
-# (registration nudge)
