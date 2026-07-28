@@ -101,6 +101,13 @@ async function main() {
 
 // Collapse a recipient's pending items into a single title/body.
 function buildMessage(items) {
+  // Deep-link target: the newest interaction that carries a show, so a tap always
+  // lands on a show detail (where the reaction is visible) instead of the home screen.
+  const newestFirst = [...items].sort(
+    (a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+  );
+  const target = newestFirst.find(i => i.tmdbId) || null;
+
   if (items.length === 1) {
     const it = items[0];
     const show = it.showTitle ? ` on ${it.showTitle}` : "";
@@ -108,17 +115,17 @@ function buildMessage(items) {
       return {
         title: `💬 ${it.actorName} commented`,
         body: it.commentText ? `"${it.commentText}"` : `${it.actorName} commented${show}.`,
-        singleShow: it,
+        singleShow: target,
       };
     }
     return {
       title: `❤️ ${it.actorName} liked your activity`,
       body: it.showTitle ? it.showTitle : "Tap to see.",
-      singleShow: it,
+      singleShow: target,
     };
   }
 
-  // Multiple interactions — summarize. Deep-link only when they all target one show.
+  // Multiple interactions — summarize, and deep-link to the newest one's show.
   const actors = [...new Set(items.map(i => i.actorName))];
   const actorLabel = actors.length === 1
     ? actors[0]
@@ -126,13 +133,10 @@ function buildMessage(items) {
       ? `${actors[0]} and ${actors[1]}`
       : `${actors[0]} and ${actors.length - 1} others`;
 
-  const tmdbIds = [...new Set(items.map(i => i.tmdbId).filter(Boolean))];
-  const singleShow = tmdbIds.length === 1 ? items.find(i => i.tmdbId === tmdbIds[0]) : null;
-
   return {
     title: "👥 New activity on Watchtower",
     body: `${actorLabel} interacted with your activity.`,
-    singleShow,
+    singleShow: target,
   };
 }
 
