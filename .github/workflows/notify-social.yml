@@ -2,7 +2,10 @@ name: Notify Social Interactions
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # Every 15 minutes (public repo — Actions minutes are unlimited)
+    - cron: "*/5 * * * *"   # Every 5 minutes (public repo — Actions minutes are unlimited).
+                            # NOTE: GitHub's scheduler is best-effort and drops ticks under
+                            # load; frequent runs give more catch-up chances. For guaranteed
+                            # timing, drive workflow_dispatch from an external cron instead.
   workflow_dispatch:           # Allow manual trigger from GitHub UI
 
 jobs:
