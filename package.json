@@ -1,0 +1,9 @@
+{
+  "name": "watchtower-notifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone cron runner that drains Watchtower's social notification queue and sends FCM pushes. Public repo for unlimited GitHub Actions minutes; contains no secrets (service account is a GitHub Secret). App source lives in the private watchtower-mobile repo.",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
