@@ -118,8 +118,9 @@ function buildMessage(items) {
         singleShow: target,
       };
     }
+    const emoji = it.emoji || "❤️";
     return {
-      title: `❤️ ${it.actorName} liked your activity`,
+      title: `${emoji} ${it.actorName} reacted`,
       body: it.showTitle ? it.showTitle : "Tap to see.",
       singleShow: target,
     };
