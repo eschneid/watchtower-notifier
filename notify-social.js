@@ -44,9 +44,27 @@ async function main() {
   let sent = 0;
 
   for (const [recipientId, items] of byRecipient) {
+    // A doc written without a recipientId would otherwise reach doc(undefined),
+    // which throws and takes the whole run — and every other recipient's
+    // notifications — down with it, on every run, until it is removed by hand.
+    if (!recipientId || recipientId === "undefined") {
+      await deleteAll(items);
+      continue;
+    }
+
     // Look up the recipient's device tokens (array, with legacy single-token fallback).
     const userSnap = await db.collection("users").doc(recipientId).get();
     const profile = userSnap.data() || {};
+
+    // Profile > Notifications > "Friend activity". Opt-out rather than opt-in:
+    // undefined means the user has never seen the switch, so it stays on, and
+    // only an explicit false silences it. Without this the toggle in the app is
+    // decorative, because this script — not the one in watchtower-mobile — is
+    // what actually sends.
+    if (profile.notifySocial === false) {
+      await deleteAll(items);
+      continue;
+    }
     const rawTokens = profile.fcmTokens;
     const fcmTokens = Array.isArray(rawTokens) && rawTokens.length > 0
       ? rawTokens
@@ -68,9 +86,15 @@ async function main() {
           notification: { title, body },
           android: { priority: "high", notification: { channelId: "default" } },
           apns: { payload: { aps: { sound: "default" } } },
-          ...(singleShow?.tmdbId && {
-            data: { tmdbId: String(singleShow.tmdbId), type: singleShow.showType || "tv" },
-          }),
+          data: {
+            // Lets the app refresh the Friends tab unread badge when this
+            // arrives while it is open. Builds before 2.1.0 ignore the field.
+            category: "social",
+            ...(singleShow?.tmdbId && {
+              tmdbId: String(singleShow.tmdbId),
+              type: singleShow.showType || "tv",
+            }),
+          },
         });
         delivered = true;
       } catch (e) {
