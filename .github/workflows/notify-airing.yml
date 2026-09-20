@@ -46,19 +46,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # The app repo, private, read with a fine-grained PAT held as
-      # MOBILE_REPO_TOKEN. Checked out over this repo's own workspace, so
-      # `scripts/` and `src/` below are the app's.
+      # The app repo, private, read with a DEPLOY KEY held as MOBILE_REPO_KEY.
+      # Checked out over this repo's own workspace, so `scripts/` and `src/`
+      # below are the app's.
       #
-      # ⚠️ A PAT EXPIRES. When it does, this step fails with a 404 that reads
-      # like the repo is missing rather than like a credential lapsed, and the
-      # airing pushes stop silently. If this job starts failing and nothing
-      # about the code changed, check the token first.
+      # A deploy key rather than a personal access token, deliberately. A PAT
+      # with Contents:Read is a credential that exists independently of any
+      # repository and is only as narrow as whoever made it remembered to make
+      # it; this key can do exactly one thing — read watchtower-mobile — and is
+      # registered on that repo as read-only, so it cannot push even if it
+      # leaked. It also does not expire, which removes the failure mode a PAT
+      # brings with it: expiry surfaces as a 404 that reads like a missing
+      # repository rather than a lapsed credential.
       - name: Check out the app repo
         uses: actions/checkout@v4
         with:
           repository: eschneid/watchtower-mobile
-          token: ${{ secrets.MOBILE_REPO_TOKEN }}
+          ssh-key: ${{ secrets.MOBILE_REPO_KEY }}
           # Not left behind in .git/config on the runner. Nothing later in this
           # job talks to git, so there is no reason to keep the credential
           # around once the checkout is done.

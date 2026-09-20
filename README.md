@@ -60,7 +60,7 @@ drift from the app's. `airDates.js` is explicit that its aired-count rule has to
 agree with the one the cards use, or the progress bar lies about its own scale;
 two copies is how that stops being true without anyone noticing.
 
-One copy, checked out at run time, cannot drift. The cost is a token, below.
+One copy, checked out at run time, cannot drift. The cost is a credential, below.
 
 ## Setup
 
@@ -75,15 +75,30 @@ Three repository secrets, under **Settings → Secrets and variables → Actions
 
 - **`TMDB_API_KEY`** — for `sync-shows.yml`.
 
-- **`MOBILE_REPO_TOKEN`** — a fine-grained personal access token with
-  **read-only access to `eschneid/watchtower-mobile`** (Repository permissions →
-  Contents: Read). Used by `actions/checkout` to pull the app repo.
+- **`MOBILE_REPO_KEY`** — the **private** half of a read-only deploy key on
+  `eschneid/watchtower-mobile`. Used by `actions/checkout` to pull the app repo.
 
-  ⚠️ **This token expires.** When it does, both checkout steps fail with a 404
-  that reads as though the repository is missing rather than as though a
-  credential lapsed, and the airing pushes stop. If either job starts failing
-  and nothing about the code changed, check the token first. Set a reminder for
-  a week before its expiry date.
+  A deploy key rather than a personal access token, on purpose. A PAT with
+  Contents:Read is a credential that exists independently of any repository and
+  is only as narrow as whoever created it remembered to make it. This key can do
+  exactly one thing — read watchtower-mobile — is registered there as read-only
+  so it cannot push even if it leaked, and does not expire. A PAT's expiry is a
+  genuinely nasty failure mode here: it surfaces as a 404 that reads like a
+  missing repository rather than a lapsed credential.
+
+  To replace it, generate a new pair and swap both halves:
+
+  ```sh
+  ssh-keygen -t ed25519 -C "watchtower-notifier checkout" -f wtkey -N ""
+  gh api repos/eschneid/watchtower-mobile/keys \
+    -f title="watchtower-notifier checkout (read-only)" \
+    -f key="$(cat wtkey.pub)" -F read_only=true
+  gh secret set MOBILE_REPO_KEY --repo eschneid/watchtower-notifier < wtkey
+  rm wtkey wtkey.pub
+  ```
+
+  Redirect the private key from a file rather than pasting it — the trailing
+  newline matters to `actions/checkout`, and a shell copy-paste tends to lose it.
 
 Secrets are encrypted by GitHub, are never exposed in a public repo, and are
 unavailable to fork pull requests. None of the workflows here can be triggered

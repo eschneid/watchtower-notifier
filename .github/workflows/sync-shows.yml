@@ -29,13 +29,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # See notify-airing.yml — same private checkout, same PAT, and the same
-      # warning about what happens when that token expires.
+      # See notify-airing.yml — same private checkout, same read-only deploy
+      # key, and the same reasoning for preferring one to a token.
       - name: Check out the app repo
         uses: actions/checkout@v4
         with:
           repository: eschneid/watchtower-mobile
-          token: ${{ secrets.MOBILE_REPO_TOKEN }}
+          ssh-key: ${{ secrets.MOBILE_REPO_KEY }}
           persist-credentials: false
 
       - name: Setup Node.js
