@@ -1,0 +1,54 @@
+name: Sync Show Metadata
+
+# Moved here from the private eschneid/watchtower-mobile for the reason set out
+# at the top of notify-airing.yml: Actions on a public repo are free, and a
+# private-repo workflow stops dead when the monthly allowance runs out.
+#
+# sync-shows.js needs nothing from the app's source — only firebase-admin — so
+# this could have carried its own copy. It checks out the app repo anyway, so
+# that both workflows here are read and maintained the same way and neither
+# becomes the odd one out that nobody remembers the rules for.
+#
+# ⚠️ GITHUB DISABLES SCHEDULED WORKFLOWS IN PUBLIC REPOS after 60 days with no
+# repository activity, and emails the owner when it does. The social sender is
+# driven by cron-job.org and is unaffected; this job is the only thing here that
+# relies on `schedule:`. If show metadata quietly stops refreshing, check
+# whether this workflow was disabled before looking at the code. Moving it to
+# cron-job.org alongside the other two removes the risk entirely.
+#
+# Lateness is tolerable here in a way it is not for the airing push: GitHub's
+# cron routinely runs hours behind, but a metadata sync that lands at 07:00
+# instead of 04:00 costs nothing.
+on:
+  schedule:
+    - cron: "0 4 * * *"   # Daily at midnight EDT (UTC-4)
+  workflow_dispatch:        # Allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # See notify-airing.yml — same private checkout, same PAT, and the same
+      # warning about what happens when that token expires.
+      - name: Check out the app repo
+        uses: actions/checkout@v4
+        with:
+          repository: eschneid/watchtower-mobile
+          token: ${{ secrets.MOBILE_REPO_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Run sync
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/sync-shows.js

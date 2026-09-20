@@ -1,0 +1,81 @@
+name: Notify Airing Today
+
+# ── Why this workflow lives in THIS repo ──────────────────────────────────────
+#
+# It used to live in eschneid/watchtower-mobile, which is private. Actions
+# minutes on a private repo come out of a 2,000-minute monthly allowance, and on
+# 2026-09-19 that allowance was fully consumed with eleven days left in the
+# cycle. On GitHub Free the consequence is not a bill — it is that private-repo
+# workflows STOP until the reset. That would have silenced "your show airs
+# today" for every user for eleven days, and nothing would have reported it
+# except the pushes not arriving.
+#
+# Actions on a PUBLIC repo are free and unmetered, which is why the social
+# sender already lives here. Billing follows the repo that owns the workflow,
+# not the repo the code is checked out from — so running here costs nothing even
+# though the code below is private.
+#
+# ── Why it checks out the app repo instead of carrying its own copy ───────────
+#
+# notify-airing.js needs `airingPayload.js` and, through it,
+# `src/services/airDates.js` — the viewer's own corrected air dates. Copying
+# those here would put a SECOND copy of the air-date rules in a second repo,
+# free to drift from the app's. airDates.js is explicit that its aired-count
+# rule has to agree with the one the cards use or the progress bar lies about
+# its own scale; two copies is how that stops being true without anyone
+# noticing. One copy, checked out at run time, cannot drift.
+#
+# Triggered by a cron-job.org job that POSTs this workflow's dispatch endpoint
+# at 13:00 UTC. There is deliberately NO `schedule:` block.
+#
+# GitHub's own cron does not run when you ask it to. Against the same 13:00
+# target it fired at 15:47, 16:43, 16:56, 17:00, 17:09, 18:06 and once 19:23 —
+# routinely 3 to 6 hours late, which for a "your show airs today" reminder means
+# arriving in the evening for something that started at nine. cron-job.org hit
+# 13:00:15 on its first run, fifteen seconds out.
+#
+# Both fired on 2026-09-09 and the run at 17:01 reported
+# "Sent: 0, Skipped: 96, Already notified today: 6" — the lastAiringNotified
+# guard in notify-airing.js is what stopped six people being told twice. That
+# guard is load-bearing; keep it if this workflow ever gains another trigger.
+on:
+  workflow_dispatch:         # cron-job.org, and manual runs from the GitHub UI
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      # The app repo, private, read with a fine-grained PAT held as
+      # MOBILE_REPO_TOKEN. Checked out over this repo's own workspace, so
+      # `scripts/` and `src/` below are the app's.
+      #
+      # ⚠️ A PAT EXPIRES. When it does, this step fails with a 404 that reads
+      # like the repo is missing rather than like a credential lapsed, and the
+      # airing pushes stop silently. If this job starts failing and nothing
+      # about the code changed, check the token first.
+      - name: Check out the app repo
+        uses: actions/checkout@v4
+        with:
+          repository: eschneid/watchtower-mobile
+          token: ${{ secrets.MOBILE_REPO_TOKEN }}
+          # Not left behind in .git/config on the runner. Nothing later in this
+          # job talks to git, so there is no reason to keep the credential
+          # around once the checkout is done.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # scripts/ is its own npm package with its own package.json — that is why
+      # this installs there rather than at the root.
+      - name: Install dependencies
+        run: npm install
+        working-directory: scripts
+
+      - name: Send notifications
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/notify-airing.js
