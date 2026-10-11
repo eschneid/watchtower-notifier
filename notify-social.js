@@ -9,7 +9,8 @@
  *
  * Queue docs (written client-side by the app's src/services/social.js
  * enqueueNotification in the private watchtower-mobile repo):
- *   { recipientId, actorId, actorName, type: "like"|"comment",
+ *   { recipientId, actorId, actorName,
+ *     type: "like"|"comment"|"friend_request"|"friend_accepted",
  *     showTitle, tmdbId, showType, commentText, sent: false, createdAt }
  *
  * Multiple pending items for the same recipient are collapsed into one push so a
@@ -135,6 +136,38 @@ function buildMessage(items) {
   if (items.length === 1) {
     const it = items[0];
     const show = it.showTitle ? ` on ${it.showTitle}` : "";
+
+    /**
+     * Friend requests, which carry no show at all.
+     *
+     * These MUST be handled before the fallback below, which assumes anything
+     * that is not a comment is a reaction — a friend request would otherwise
+     * arrive as "❤️ Adam reacted" with a body of "Tap to see.", describing
+     * something that never happened.
+     *
+     * Both are new in 2.10.x. Until then a request sent nothing in either
+     * direction: invisible when it arrived, and invisible when it was
+     * accepted, so the only signal was noticing a new name in the list.
+     */
+    if (it.type === "friend_request") {
+      return {
+        title: `👋 ${it.actorName} wants to be friends`,
+        // The note they attached, when there is one. It is the part that says
+        // who this is, which matters most for a request from a name you may
+        // not recognise.
+        body: it.commentText ? `"${it.commentText}"` : "Open Watchtower to accept.",
+        singleShow: null,
+      };
+    }
+
+    if (it.type === "friend_accepted") {
+      return {
+        title: `🤝 ${it.actorName} accepted your friend request`,
+        body: "You will now see what each other is watching.",
+        singleShow: null,
+      };
+    }
+
     if (it.type === "comment") {
       return {
         title: `💬 ${it.actorName} commented`,
