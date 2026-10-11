@@ -18,6 +18,15 @@
  * behind (transient failure) are retried next run.
  */
 
+/**
+ * Types the "Friend activity" switch does NOT silence.
+ *
+ * That switch means reactions and comments — things that happen about you and
+ * that you can ignore. A friend request cannot be answered by anybody else,
+ * so silencing it strands somebody rather than reducing noise.
+ */
+const ALWAYS_SEND = new Set(["friend_request", "friend_accepted"]);
+
 const admin = require("firebase-admin");
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -62,9 +71,26 @@ async function main() {
     // only an explicit false silences it. Without this the toggle in the app is
     // decorative, because this script — not the one in watchtower-mobile — is
     // what actually sends.
+    let pending = items;
     if (profile.notifySocial === false) {
-      await deleteAll(items);
-      continue;
+      /**
+       * Friend requests go through anyway.
+       *
+       * "Friend activity" means reactions and comments — things that happen
+       * ABOUT you and that you can ignore. A friend request cannot be acted
+       * on by anybody else, and silencing it does not reduce noise, it
+       * strands a person waiting on an answer that never comes. The same goes
+       * for the acceptance, which is a reply to something the recipient
+       * started themselves.
+       *
+       * The suppressed items are still deleted, or they would pile up
+       * forever against somebody who has the switch off.
+       */
+      const essential = items.filter((i) => ALWAYS_SEND.has(i.type));
+      const silenced = items.filter((i) => !ALWAYS_SEND.has(i.type));
+      if (silenced.length) await deleteAll(silenced);
+      if (essential.length === 0) continue;
+      pending = essential;
     }
     const rawTokens = profile.fcmTokens;
     const fcmTokens = Array.isArray(rawTokens) && rawTokens.length > 0
@@ -73,11 +99,11 @@ async function main() {
 
     // No tokens — recipient can't be reached; drop the items so they don't pile up.
     if (fcmTokens.length === 0) {
-      await deleteAll(items);
+      await deleteAll(pending);
       continue;
     }
 
-    const { title, body, singleShow } = buildMessage(items);
+    const { title, body, singleShow } = buildMessage(pending);
 
     let delivered = false;
     for (const token of fcmTokens) {
@@ -111,12 +137,12 @@ async function main() {
     }
 
     if (delivered) {
-      console.log(`  ✓ ${recipientId} — ${items.length} interaction(s)`);
+      console.log(`  ✓ ${recipientId} — ${pending.length} interaction(s)`);
       sent++;
-      await deleteAll(items);
+      await deleteAll(pending);
     } else {
       // All tokens were stale/unreachable. Drop the items to avoid infinite retry.
-      await deleteAll(items);
+      await deleteAll(pending);
     }
   }
 
